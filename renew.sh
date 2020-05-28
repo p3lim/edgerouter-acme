@@ -13,6 +13,7 @@ usage: $0 [OPTION]...
 	-d  domain to request certificates for
 	-u  ACME endpoint url
 	-i  insecure requests, in case the ACME endpoint certificate is not known
+	-f  force renewal even before the due time
 	-h  display this help message and exit
 
 The -d and -u options are required. -d can be specified multiple times.
@@ -31,7 +32,7 @@ err(){
 }
 
 # parse options
-while getopts "d:u:ih" opt; do
+while getopts "d:u:ifh" opt; do
 	case "$opt" in
 		d)
 			DOMAINS+=("$OPTARG")
@@ -41,6 +42,9 @@ while getopts "d:u:ih" opt; do
 			;;
 		i)
 			ARG_INSECURE='--insecure '
+			;;
+		f)
+			ARG_FORCE='--force '
 			;;
 		h | *)
 			usage
@@ -75,10 +79,43 @@ log "Installing/updating acme.sh (v$ACME_SH_VERSION)" ; {
 }
 
 log 'Configuring lighttpd' ; {
+	if ! /bin/grep -qxF 'include "acme.conf"' /etc/lighttpd/lighttpd.conf; then
+		if ! /bin/echo 'include "acme.conf"' >> /etc/lighttpd/lighttpd.conf; then
+			err 'Failed to modify webgui configuration'
+		fi
+
+		if ! /bin/cat <<EOF >/etc/lighttpd/acme.conf
+\$HTTP["url"] =~ "^/.well-known/acme-challenge/" {
+	\$HTTP["host"] =~ "^([^\:]+)(\:.*)?\$" {
+		url.redirect = ("^/(.*)" => "http://%1:9090/\$1")
+		url.redirect-code = 302
+	}
+}
+EOF
+		then
+			err 'Failed to modify webgui configuration'
+		fi
+
+		mkdir -p /etc/systemd/system/lighttpd.service.d/
+
+		if ! cat <<EOF >/etc/systemd/system/lighttpd.service.d/reload.conf
+[Service]
+ExecReload=/usr/bin/kill -HUP $MAINPID
+EOF
+		then
+			err 'Failed to modify webgui service'
+		fi
+
+		systemctl daemon-reload || err 'Failed to reload systemd daemon'
+		systemctl restart lighttpd || err 'Failed to restart webgui'
+	fi
+}
+
+log 'Configuring challenge webserver' ; {
 	if ! cat <<EOF >"$ACME_DIR/lighttpd.conf"
 server.pid-file = "$ACME_DIR/lighttpd.pid"
 server.document-root = "$ACME_DIR/http"
-server.port = 80
+server.port = 9090
 
 server.modules = ("mod_accesslog")
 accesslog.filename = "$ACME_DIR/lighttpd.log"
@@ -88,25 +125,19 @@ EOF
 	fi
 }
 
-log 'Killing webgui' ; {
-	systemctl stop lighttpd || err 'Failed to stop webgui'
-}
-
 log 'Attempting renew' ; {
 	"$ACME_DIR/acme.sh" \
 		--issue \
 		$ARG_DOMAINS \
 		$ARG_SERVER \
 		$ARG_INSECURE \
+		$ARG_FORCE \
 		--ca-file "$CERT_DIR/ca.crt" \
 		--cert-file "$CERT_DIR/cert.crt" \
 		--key-file "$CERT_DIR/cert.key" \
-		--reloadcmd "cat $CERT_DIR/cert.key $CERT_DIR/cert.crt > $CERT_DIR/cert.pem" \
-		--pre-hook "lighttpd -f $ACME_DIR/lighttpd.conf" \
-		--post-hook "kill \$(cat $ACME_DIR/lighttpd.pid)" \
-		--webroot "$HTTP_DIR"
-}
-
-log 'Starting webgui' ; {
-	systemctl start lighttpd || err 'Failed to start webgui'
+		--reloadcmd "/bin/cat $CERT_DIR/cert.key $CERT_DIR/cert.crt > $CERT_DIR/cert.pem" \
+		--pre-hook "/usr/sbin/lighttpd -f $ACME_DIR/lighttpd.conf" \
+		--post-hook "/usr/bin/kill \$(/bin/cat $ACME_DIR/lighttpd.pid)" \
+		--renew-hook '/bin/systemctl reload lighttpd' \
+		--webroot "$HTTP_DIR" 2>&1
 }

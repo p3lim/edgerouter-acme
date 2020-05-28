@@ -6,12 +6,11 @@ Designed for use with an internal ACME endpoints such as [Smallstep Certificates
 
 - **will** automatically renew certificates (if configured as specified below).
 - **will** persist between firmware upgrades (if configured as specified below).
-- **will** take down the webgui while requesting/renewing certificates (at most once a day for a few seconds).
-	- Not for the certificate to take effect, but for the ACME server to communicate with the renewal script.
+- **won't** take down the webgui while requesting/renewing certificates, gracefully reloads only.
 - **won't** modify any firewall rules or mess with iptables.
-	- Assuming that port 80 is already open on the _inside_ of the network, and thus available to the machine/VM/container running the ACME endpoint.
+	- Assuming that port 80 is already open on the _inside_ of the network, and that the web GUI is not disabled.
 - **won't** mess with the existing system configuration.
-- **won't** work on versions of EdgeOS prior to 2.0 (submit an issue and I'll add support for 1.x if there is demand).
+- **won't** work on versions of EdgeOS prior to 2.0.
 
 If you _really_ want/need to have certificates for a public domain (although you really shouldn't expose the device), use [this alternative by @hungnguyenm](https://github.com/hungnguyenm/edgemax-acme) instead.
 
