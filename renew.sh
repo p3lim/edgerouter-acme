@@ -100,7 +100,7 @@ EOF
 
 		if ! cat <<EOF >/etc/systemd/system/lighttpd.service.d/reload.conf
 [Service]
-ExecReload=/usr/bin/kill -HUP $MAINPID
+ExecReload=/usr/bin/kill -HUP \$MAINPID
 EOF
 		then
 			err 'Failed to modify webgui service'
@@ -135,9 +135,8 @@ log 'Attempting renew' ; {
 		--ca-file "$CERT_DIR/ca.crt" \
 		--cert-file "$CERT_DIR/cert.crt" \
 		--key-file "$CERT_DIR/cert.key" \
-		--reloadcmd "/bin/cat $CERT_DIR/cert.key $CERT_DIR/cert.crt > $CERT_DIR/cert.pem" \
+		--reloadcmd "/bin/cat $CERT_DIR/cert.key $CERT_DIR/cert.crt > $CERT_DIR/cert.pem ; /bin/systemctl reload lighttpd" \
 		--pre-hook "/usr/sbin/lighttpd -f $ACME_DIR/lighttpd.conf" \
 		--post-hook "/usr/bin/kill \$(/bin/cat $ACME_DIR/lighttpd.pid)" \
-		--renew-hook '/bin/systemctl reload lighttpd' \
 		--webroot "$HTTP_DIR" 2>&1
 }
