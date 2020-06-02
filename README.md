@@ -6,7 +6,7 @@ Designed for use with an internal ACME endpoints such as [Smallstep Certificates
 
 - **will** automatically renew certificates (if configured as specified below).
 - **will** persist between firmware upgrades (if configured as specified below).
-- **won't** take down the webgui while requesting/renewing certificates, gracefully reloads only.
+- **will** take down the webgui when the certificate is renewed.
 - **won't** modify any firewall rules or mess with iptables.
 	- Assuming that port 80 is already open on the _inside_ of the network, and that the web GUI is not disabled.
 - **won't** mess with the existing system configuration.
@@ -30,6 +30,7 @@ If the [acme.sh](https://github.com/acmesh-official/acme.sh/releases) script is 
 Run once manually
 
 	sudo /config/acme/renew.sh -d <my-domain.com> -u <acme endpoint>
+	sudo systemctl restart lighttpd
 
 Enter configuration mode
 
