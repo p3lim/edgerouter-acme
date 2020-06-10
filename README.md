@@ -19,6 +19,7 @@ If you _really_ want/need to have certificates for a public domain (although you
 	ssh edgerouter
 	sudo mkdir /config/acme/
 	sudo curl -sSLo /config/acme/renew.sh https://raw.githubusercontent.com/p3lim/edgerouter-acme/master/renew.sh
+	sudo chown root:vyattacfg /config/acme/renew.sh
 	sudo chmod 770 /config/acme/renew.sh
 
 ### Update
